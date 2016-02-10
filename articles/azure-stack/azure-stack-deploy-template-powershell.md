@@ -53,7 +53,30 @@ ARM templates deploy and provision all of the resources for your application in 
 		Get-AzureRmSubscription -SubscriptionName "SUBSCRIPTION_NAME"  | Select-AzureRmSubscription
 
 ```
+  In China, use the following command instead:
 
+```
+# Add the Microsoft Azure Stack environment
+        [net.mail.mailaddress]$AadFullMailAddress="EMAIL"
+        $AadTenantId=(Invoke-WebRequest -Uri ('https://login.chinacloudapi.cn/'+($AadFullMailAddress.Host)+'/.well-known/openid-configuration')|ConvertFrom-Json).token_endpoint.Split('/')[3]
+
+# Configure the environment with the Add-AzureRmEnvironment cmdlet
+        Add-AzureRmEnvironment -Name 'Azure Stack' `
+            -ActiveDirectoryEndpoint ("https://login.chinacloudapi.cn/$AadTenantId/") `
+            -ActiveDirectoryServiceEndpointResourceId "https://azurestack.local-api/"`
+            -ResourceManagerEndpoint ("https://api.azurestack.local/") `
+            -GalleryEndpoint ("https://gallery.azurestack.local/") `
+            -GraphEndpoint "https://graph.chinacloudapi.cn/"
+
+# Authenticate a user to the environment (you will be prompted during authentication)
+        $privateEnv = Get-AzureRmEnvironment 'Azure Stack'
+        $privateAzure = Add-AzureRmAccount -Environment $privateEnv -Verbose
+        Select-AzureRmProfile -Profile $privateAzure
+
+# Select an existing subscription where the deployment will take place
+        Get-AzureRmSubscription -SubscriptionName "SUBSCRIPTION_NAME" | Select-AzureRmSubscription
+
+```
 
 ## Run AzureRM PowerShell cmdlets
 
@@ -61,35 +84,40 @@ In this example, you'll run the following script to deploy a virtual machine to 
 
 The VHD used in this example template is a default marketplace image (WindowsServer-2012-R2-Datacenter). If you want to target another VHD, you must first add an image to the Platform Image Repository as described in [Add an image to the Platform Image Repository](azure-stack-add-image-pir.md).
 
-1.  Go to <http://aka.ms/AzureStackGitHub>, search for the **101-simple-windows-vm** template, and save it to the following location: c:\\templates\\azuredeploy.json.
+1.  This sample will use the **101-simple-windows-vm** template from <http://aka.ms/AzureStackGitHub>.
 
 2.  In PowerShell, run the following deployment script.
 
   Replace *username* and *password* with your username and password. On subsequent uses, increment the value for the *$myNum* parameter. If you don’t do this, your previous virtual machine deployment will be overwritten.
 
 ```
-		# Set Deployment Variables
-		$myNum = "001" #Modify this per deployment
-		$RGName = "myRG$myNum"
-		$myLocation = "local"
-		$myBlobStorageEndpoint = "blob.azurestack.local"
+# Set Deployment Variables
+        $myNum = "001" #Modify this per deployment
+        $RGName = "myRG$myNum"
+        $myLocation = "local"
+        $myBlobStorageEndpoint = "blob.azurestack.local"
 
-		# Create Resource Group for Template Deployment
-		New-AzureRMResourceGroup -Name $RGName -Location $myLocation
+        # Create Resource Group for Template Deployment
+        New-AzureRMResourceGroup -Name $RGName -Location $myLocation
 
-		# Deploy Simple IaaS Template
-		New-AzureRmResourceGroupDeployment `
-		    -Name "myDeployment$myNum" `
-		    -ResourceGroupName $RGName `
-		    -TemplateFile "c:\templates\azuredeploy-101-simple-windows-vm.json" `
-		    -deploymentLocation $myLocation `
-		    -blobStorageEndpoint $myBlobStorageEndpoint `
-		    -newStorageAccountName "mystorage$myNum" `
-		    -dnsNameForPublicIP "mydns$myNum" `
-		    -adminUsername "username" `
-		    -adminPassword ("password" | ConvertTo-SecureString -AsPlainText -Force) `
-		    -vmName "myVM$myNum" `
-		    -windowsOSVersion "2012-R2-Datacenter "
+# Parameters for the template
+        $ParamObj = @{
+            Name = "myDeployment$myNum"
+            ResourceGroupName = $RGName
+            TemplateFile = "https://raw.githubusercontent.com/Azure/AzureStack-QuickStart-Templates/master/101-simple-windows-vm/azuredeploy.json"
+            deploymentLocation = $myLocation
+            blobStorageEndpoint = $myBlobStorageEndpoint
+            newStorageAccountName = "mystorage$myNum"
+            dnsNameForPublicIP = "mydns$myNum"
+            adminUsername = "username"
+            adminPassword = ("password" | ConvertTo-SecureString -AsPlainText -Force)
+            vmName= "myVM$myNum"
+            windowsOSVersion = "2012-R2-Datacenter"
+        }
+
+
+# Deploy Simple IaaS Template
+        New-AzureRmResourceGroupDeployment @ParamObj
 ```
 
 4.  Open the Azure Stack portal, click **Browse**, click **Virtual machines**, and look for your new virtual machine (*myDeployment001*).
